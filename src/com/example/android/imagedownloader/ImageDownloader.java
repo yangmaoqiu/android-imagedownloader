@@ -34,11 +34,9 @@ import android.os.Handler;
 import android.util.Log;
 import android.widget.ImageView;
 
-import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
@@ -107,7 +105,7 @@ public class ImageDownloader {
                     break;
 
                 case NO_DOWNLOADED_DRAWABLE:
-                    imageView.setMinimumHeight(144);
+                    imageView.setMinimumHeight(156);
                     BitmapDownloaderTask task = new BitmapDownloaderTask(imageView);
                     task.execute(url);
                     break;
@@ -116,6 +114,7 @@ public class ImageDownloader {
                     task = new BitmapDownloaderTask(imageView);
                     DownloadedDrawable downloadedDrawable = new DownloadedDrawable(task);
                     imageView.setImageDrawable(downloadedDrawable);
+                    imageView.setMinimumHeight(156);
                     task.execute(url);
                     break;
             }
@@ -179,34 +178,12 @@ public class ImageDownloader {
             final HttpEntity entity = response.getEntity();
             if (entity != null) {
                 InputStream inputStream = null;
-                OutputStream outputStream = null;
                 try {
                     inputStream = entity.getContent();
-                    final ByteArrayOutputStream dataStream = new ByteArrayOutputStream();
-                    outputStream = new BufferedOutputStream(dataStream, IO_BUFFER_SIZE);
-
-                    byte[] b = new byte[IO_BUFFER_SIZE];
-                    int read;
-                    while ((read = inputStream.read(b)) != -1) {
-                        outputStream.write(b, 0, read);
-                    }
-
-                    outputStream.flush();
-
-                    final byte[] data = dataStream.toByteArray();
-                    final Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
-
-                    // FIXME : Should use BitmapFactory.decodeStream(inputStream) instead.
-                    //final Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-
-                    return bitmap;
-
+                    return BitmapFactory.decodeStream(new FlushedInputStream(inputStream));
                 } finally {
                     if (inputStream != null) {
                         inputStream.close();
-                    }
-                    if (outputStream != null) {
-                        outputStream.close();
                     }
                     entity.consumeContent();
                 }
@@ -228,6 +205,25 @@ public class ImageDownloader {
         return null;
     }
     
+    /**
+     * A patched InputSteam that tries harder to fully read the input stream.
+     */
+    static class FlushedInputStream extends FilterInputStream {
+        public FlushedInputStream(InputStream inputStream) {
+            super(inputStream);
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            long totalBytesSkipped = 0L;
+            while (totalBytesSkipped < n) {
+                long bytesSkipped = in.skip(n-totalBytesSkipped);
+                if (bytesSkipped == 0L) break;
+                totalBytesSkipped += bytesSkipped;
+            }
+            return totalBytesSkipped;
+        }
+    }
 
     /**
      * The actual AsyncTask that will asynchronously download the image.
@@ -285,7 +281,6 @@ public class ImageDownloader {
 
         public DownloadedDrawable(BitmapDownloaderTask bitmapDownloaderTask) {
             super(Color.BLACK);
-            setBounds(0, 0, 144, 144);
             bitmapDownloaderTaskReference =
                 new WeakReference<BitmapDownloaderTask>(bitmapDownloaderTask);
         }

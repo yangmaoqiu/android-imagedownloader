@@ -18,7 +18,6 @@ package com.example.android.imagedownloader;
 
 import android.app.ListActivity;
 import android.os.Bundle;
-import android.util.Log;
 import android.widget.RadioGroup;
 
 public class ImageListActivity extends ListActivity  implements RadioGroup.OnCheckedChangeListener {
@@ -46,6 +45,5 @@ public class ImageListActivity extends ListActivity  implements RadioGroup.OnChe
         }
         
         ((ImageAdapter) getListAdapter()).getImageDownloader().setMode(mode);
-        Log.d("ccccccccccccccc", "weer "+ checkedId);
     }
 }
