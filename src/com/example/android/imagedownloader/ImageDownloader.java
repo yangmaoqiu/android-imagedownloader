@@ -180,6 +180,8 @@ public class ImageDownloader {
                 InputStream inputStream = null;
                 try {
                     inputStream = entity.getContent();
+                    // return BitmapFactory.decodeStream(inputStream);
+                    // Bug on slow connections, fixed in future release.
                     return BitmapFactory.decodeStream(new FlushedInputStream(inputStream));
                 } finally {
                     if (inputStream != null) {
@@ -204,9 +206,9 @@ public class ImageDownloader {
         }
         return null;
     }
-    
-    /**
-     * A patched InputSteam that tries harder to fully read the input stream.
+
+    /*
+     * An InputStream that skips the exact number of bytes provided, unless it reaches EOF.
      */
     static class FlushedInputStream extends FilterInputStream {
         public FlushedInputStream(InputStream inputStream) {
@@ -217,8 +219,15 @@ public class ImageDownloader {
         public long skip(long n) throws IOException {
             long totalBytesSkipped = 0L;
             while (totalBytesSkipped < n) {
-                long bytesSkipped = in.skip(n-totalBytesSkipped);
-                if (bytesSkipped == 0L) break;
+                long bytesSkipped = in.skip(n - totalBytesSkipped);
+                if (bytesSkipped == 0L) {
+                    int b = read();
+                    if (b < 0) {
+                        break;  // we reached EOF
+                    } else {
+                        bytesSkipped = 1; // we read one byte
+                    }
+                }
                 totalBytesSkipped += bytesSkipped;
             }
             return totalBytesSkipped;
